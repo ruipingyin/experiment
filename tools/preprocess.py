@@ -1,7 +1,5 @@
 import gzip
 
-
-
 def readData():
     # Delte the duplicated data
 

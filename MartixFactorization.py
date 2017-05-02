@@ -6,7 +6,7 @@ from operator import itemgetter
 def ColorPrint(idx = 0):
     if idx == 0:
         print '\033[1;31;40m'
-    else if idx == 1:
+    elif idx == 1:
         print '\032[1;32;40m'
     else:
         print '\032[1;33;40m'
