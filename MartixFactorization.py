@@ -3,14 +3,6 @@ import sys, random, math
 import numpy as np
 from operator import itemgetter
 
-def ColorPrint(idx = 0):
-    if idx == 0:
-        print '\033[1;31;40m'
-    elif idx == 1:
-        print '\032[1;32;40m'
-    else:
-        print '\032[1;33;40m'
-
 class Dataset():
     def __init__(self):
         self.dataset = {}
