@@ -1,5 +1,6 @@
 import sys, random, math
 from operator import itemgetter
+from utils import ColorPrint
 
 ''' Only consider implicit rating because tianchi dataset has no rating '''
 
@@ -12,12 +13,9 @@ class DataBase():
     with open(filename, 'r') as fp:
       for i, line in enumerate(fp):
         yield line.strip('\r\n')
-        if i%100000 == 0: sys.stdout.write('loading %s(%s)\r' % (filename, i))
-    print >> sys.stderr, 'load %s succ' % filename
+    ColorPrint('load %s succ' % filename, 1)
 
   def generate_dataset(self, filename, pivot):
-    print >> sys.stderr, 'spliting training set and test set'
-    
     trainset_len = 0
     testset_len = 0
     for line in self.loadfile(filename):
@@ -37,8 +35,8 @@ class DataBase():
         self.trainset[user].add(item)
         trainset_len = trainset_len + 1
 
-    print >> sys.stderr, 'train set = %s, users = %s' % (trainset_len, len(self.trainset))
-    print >> sys.stderr, 'test set = %s, users = %s' % (testset_len, len(self.testset))
+    ColorPrint('train set = %s, users = %s' % (trainset_len, len(self.trainset)), 1)
+    ColorPrint('test set = %s, users = %s' % (testset_len, len(self.testset)), 1)
       
 
 if __name__ == '__main__':

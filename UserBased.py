@@ -36,7 +36,7 @@ class UserBasedCF():
         self.user_sim_mat[user][rUser] = count / math.sqrt(len(self.dataset.trainset[user]) * len(self.dataset.trainset[rUser]))
         simfactor_count += 1
         if simfactor_count % 2000000 == 0: ColorPrint('calculating user similarity factor(%d)' % simfactor_count, 1)
-    ColorPrint('calculate user similarity matrix(similarity factor) succ', 1)
+        
   def recommend(self, user):
     ''' Find K similar users and recommend N movies. '''
     K = self.n_sim_user
@@ -44,6 +44,8 @@ class UserBasedCF():
     
     rank = dict()
     watched_movies = self.dataset.trainset[user]
+    
+    if user not in self.user_sim_mat: return []
     
     for user, wuv in sorted(self.user_sim_mat[user].items(), key=itemgetter(1), reverse=True)[0:(K if len(self.user_sim_mat[user].items()) > K else len(self.user_sim_mat[user].items()))]:
       for movie in self.dataset.trainset[user]:
@@ -53,7 +55,7 @@ class UserBasedCF():
     return sorted(rank.items(), key=itemgetter(1), reverse=True)[0:N]
   
   def evaluate(self):
-    print >> sys.stderr, 'Evaluation start...'
+    ColorPrint('Evaluation start...', 1)
     N = self.n_rec_movie
     
     hit, rec_count, test_count = 0, 0, 0
@@ -63,7 +65,8 @@ class UserBasedCF():
     popular_sum = 0
     
     for i, user in enumerate(self.dataset.trainset):
-      if i % 500 == 0: ColorPrint('recommended for %d users' % i, 1)
+      if i % 500 == 0: sys.stderr.write('Done %d / %d\r' % (i, len(self.dataset.testset)))
+      if i == len(self.dataset.trainset) - 1: sys.stderr.write(' ' * 50 + '\r')
       test_movies = self.dataset.testset[user]
       rec_movies = self.recommend(user)
       
@@ -78,7 +81,7 @@ class UserBasedCF():
     recall = hit / (1.0 * test_count)
     coverage = len(all_rec_movies) / (1.0 * self.movie_count)
     
-    ColorPrint('precision=%.4f\trecall=%.4f\tcoverage=%.4f' % (precision, recall, coverage, popularity), 1)
+    ColorPrint('precision=%.4f\trecall=%.4f\tcoverage=%.4f' % (precision, recall, coverage))
       
 
 if __name__ == '__main__':
