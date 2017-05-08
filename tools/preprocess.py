@@ -10,8 +10,8 @@ reviews = []
 cnt = 0
 with gzip.open(reviewPath, 'r') as reviewFile:
   for review in reviewFile:
-    reviews.append([eval(review)['reviewerID'], eval(review)['asin'], eval(review)['unixReviewTime']])
-    if cnt % 10000 == 0: sys.stdout.write('Done %d.\r' % cnt)
+    reviews.append([eval(review)['reviewerID'], eval(review)['asin'], eval(review)['unixReviewTime'], eval(review)['overall']])
+    if cnt % 10000 == 0: sys.stderr.write('Done %d.\r' % cnt)
     cnt += 1
 
 # Filter spase user
@@ -40,6 +40,8 @@ with open('../dataset/Ama/reviews.txt', 'w') as reviewFile:
     reviewFile.write(str(itemIndex[review[1]]))
     reviewFile.write(' ')
     reviewFile.write(str(review[2]))
+    reviewFile.write(' ')
+    reviewFile.write(str(review[3]))
     reviewFile.write('\n')
 
 with open('../dataset/Ama/userMap.txt', 'w') as userMap:

@@ -1,76 +1,75 @@
 #-*- coding: utf-8 -*-
-import sys, random, math
+import tensorflow as tf
 import numpy as np
-from operator import itemgetter
+from tools.Dataset import DataSet
+from tools.utils import ColorPrint
 
-class Dataset():
-    def __init__(self):
-        self.dataset = {}
-        self.trainset = {}
-        self.testset = {}
-        self.nUsers = 0
-        self.nItems = 0
-        self.nTrainSet = 0
-        self.nTestSet = 0
-    
-    def loadfile(self, filename):
-        # load a file, return a generator
-        fp = open(filename, 'r')
-        for i,line in enumerate(fp):
-            yield line.strip('\r\n')
-            if i%100000 == 0:
-                print >> sys.stderr, 'loading %s(%s)' % (filename, i)
-        fp.close()
-        print >> sys.stderr, 'load %s succ' % filename
-
-    def generate_dataset(self, filename, pivot=0.7):
-        print >> sys.stderr, 'spliting training set and test set'
-        
-        itemSet = set()
-        for line in self.loadfile(filename):
-            user, item, rating, timestamp = line.split('::')
-            
-            self.dataset.setdefault(int(user), {})
-            self.dataset[int(user)][int(item)] = long(long(timestamp) * 10 + int(float(rating)))
-        
-        # split the data by pivot
-        for user, items in self.dataset.items():
-            for item, timestamp in sorted(items.items(), key=itemgetter(1), reverse=True)[0:int(len(items) * (1 - pivot))]:
-                self.testset.setdefault(user, {})
-                self.testset[user][item] = int(timestamp % 10)
-                itemSet.add(item)
-                self.nTestSet = self.nTestSet + 1
-            for item, timestamp in sorted(items.items(), key=itemgetter(1), reverse=True)[int(len(items) * (1 - pivot)):]:
-                self.trainset.setdefault(user, {})
-                self.trainset[user][item] = int(timestamp % 10)
-                itemSet.add(item)
-                self.nTrainSet = self.nTrainSet + 1
-                
-        self.nItems = len(itemSet)
-        if len(self.trainset) != len(self.testset):
-            ColorPrint('Dataset Error')
-            exit()
-        else:
-            self.nUsers = len(self.trainset)
-
-        print >> sys.stderr, 'train set = %s, users = %s' % (self.nTrainSet, len(self.trainset))
-        print >> sys.stderr, 'test set = %s, users = %s' % (self.nTestSet, len(self.testset))
-        
 class MatrixFactoriztion:
-    def __init__(self, data):
-        self.nUsers = data.nUsers
-        self.nItems = data.nItems
-        
-        self.trainSet = np.zeros((self.nUsers, self.nItems), dtype=np.int8)
-        self.testSet = np.zeros((self.nUsers, self.nItems), dtype=np.int8)
-        
-        for user, items in data.trainset.items():
-            for item, rating in items.items():
-                self.trainSet[user, item] = rating
-                
-        for user, items in data.testset.items():
-            for item, rating in items.items():
-                self.testSet[user, item] = rating
+  def __init__(self, filename):
+    self.trainSet, self.testSet, self.userCount, self.itemCount = DataSet(filename).get_dataset()
     
-    def factorization(self):
-        
+    self.k = 20
+    self.learnRate = 0.01
+    self.reg_lambda = tf.constant(0.01, dtype=tf.float32)
+    self.nStep = 10000
+    self.batchSize = 100000
+    
+  def buildGraph(self):
+    self.userIdx = tf.placeholder(tf.int32, [None])
+    self.itemIdx = tf.placeholder(tf.int32, [None])
+    self.ratings = tf.placeholder(tf.float32, [None])
+    
+    self.userFactor = tf.Variable(tf.truncated_normal([self.userCount, self.k], stddev = 0.001), name = 'UserFactor')
+    self.itemFactor = tf.Variable(tf.truncated_normal([self.itemCount, self.k], stddev = 0.001), name = 'ItemFactor')
+    self.userBias = tf.Variable(tf.truncated_normal([self.userCount], stddev = 0.001), name = 'UserBias')
+    self.itemBias = tf.Variable(tf.truncated_normal([self.itemCount], stddev = 0.001), name = 'ItemBias')
+    
+    self.userFactorEmbed = tf.nn.embedding_lookup(self.userFactor, self.userIdx)
+    self.itemFactorEmbed = tf.nn.embedding_lookup(self.itemFactor, self.itemIdx)
+    self.userBiasEmbed = tf.nn.embedding_lookup(self.userBias, self.userIdx)
+    self.itemBiasEmbed = tf.nn.embedding_lookup(self.itemBias, self.itemIdx)
+    # some questions here: it seems the author want to calculate the seril
+    self.ratingMatrix = tf.reduce_sum(tf.mul(self.userFactorEmbed, self.itemFactorEmbed), 1)
+    self.ratingMatrix = tf.add(self.ratingMatrix, self.userBiasEmbed)
+    self.ratingMatrix = tf.add(self.ratingMatrix, self.itemBiasEmbed)
+    
+    self.RMSE = tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.ratings, self.ratingMatrix))))
+    self.l2_loss = tf.nn.l2_loss(tf.sub(self.ratings, self.ratingMatrix))
+    self.MAE = tf.reduce_mean(tf.abs(tf.sub(self.ratings, self.ratingMatrix)))
+    self.regulazation = tf.add(tf.mul(self.reg_lambda, tf.nn.l2_loss(self.userFactor)), tf.mul(self.reg_lambda, tf.nn.l2_loss(self.itemFactor)))
+    self.loss = tf.add(self.l2_loss, self.regulazation)
+    
+    self.optimizer = tf.train.AdamOptimizer(self.learnRate)
+    self.trainStepUser = self.optimizer.minimize(self.loss, var_list = [self.userFactor, self.userBias])
+    self.trainStepItem = self.optimizer.minimize(self.loss, var_list = [self.itemFactor, self.itemBias])
+    
+    # evaluation related variable
+    self.sUser = tf.placeholder(tf.int32, 1)
+    self.sUserFactor = tf.nn.embedding_lookup(self.userFactor, self.sUser)
+    self.sUserBias = tf.nn.embedding_lookup(self.userBias, self.sUser)
+    self.sRatings = tf.mul(self.sUser, self.itemBias)
+    
+  def recommend(self, user, n = 50):
+    # except boughted
+    self.sUserFactor = tf.nn.embedding_lookup(self.userFactor, self.userIdx)
+  
+  def evaluate(self):
+    
+  
+  def train(self):
+    self.sess = tf.Session()
+    self.sess.run(tf.initialize_all_variables())
+    
+    for step in range(1, self.nStep):
+      batchIdx = np.random.randint(len(self.trainSet), size = self.batchSize)
+      feed_dict = {self.userIdx: self.trainSet[batchIdx][:, 0], self.itemIdx: self.trainSet[batchIdx][:, 1], self.ratings: self.trainSet[batchIdx][:, 2]}
+      
+      self.sess.run(self.trainStepItem, feed_dict = feed_dict)
+      self.sess.run(self.trainStepUser, feed_dict = feed_dict)
+      
+      if step % int(self.nStep / 100) == 0: ColorPrint('RMSE: %f, MAE: %f' % (self.sess.run(self.RMSE, feed_dict = feed_dict), self.sess.run(self.MAE, feed_dict = feed_dict)), 1)
+    
+if __name__ == '__main__':
+  model = MatrixFactoriztion('./dataset/Ama/reviews.txt')
+  model.buildGraph()
+  model.train()
