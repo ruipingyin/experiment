@@ -62,8 +62,6 @@ class UserBasedCF():
     
     all_rec_movies = set()
     
-    popular_sum = 0
-    
     for i, user in enumerate(self.dataset.trainset):
       if i % 500 == 0: sys.stderr.write('Done %d / %d\r' % (i, len(self.dataset.testset)))
       if i == len(self.dataset.trainset) - 1: sys.stderr.write(' ' * 50 + '\r')
