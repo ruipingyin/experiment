@@ -46,13 +46,10 @@ class MatrixFactoriztion:
     self.trainStepItem = self.optimizer.minimize(self.loss, var_list = [self.itemFactor, self.itemBias])
     
     # evaluation related variable
-    self.sUser = tf.placeholder(tf.int32, [1])
+    self.sUser = tf.placeholder(tf.int32, [None])
     self.sUserFactor = tf.nn.embedding_lookup(self.userFactor, self.sUser)
     self.sUserBias = tf.nn.embedding_lookup(self.userBias, self.sUser)
-    self.sItem = tf.placeholder(tf.int32, [None])
-    self.sItemFactor = tf.nn.embedding_lookup(self.itemFactor, self.sItem)
-    self.sItemBias = tf.nn.embedding_lookup(self.itemBias, self.sItem)
-    self.sRatings = tf.add(tf.reduce_sum(tf.matmul(self.sUserFactor, tf.transpose(self.sItemFactor)), 0), self.sItemBias)
+    self.sRatings = tf.add(tf.add(tf.reduce_sum(tf.matmul(self.sUserFactor, tf.transpose(self.itemFactor)), 0), self.sUserBias), self.itemBias)
     
     # Saver
     tf.summary.scalar("RMSE", self.RMSE)
@@ -60,7 +57,7 @@ class MatrixFactoriztion:
     tf.summary.scalar("L2-Loss", self.l2_loss)
     tf.summary.scalar("Reg-Loss", self.loss)
     
-    self.summary_op = tf.merge_all_summaries()
+    self.summary_op = tf.summary.merge_all()
     
     self.saver = tf.train.Saver()
     
@@ -72,18 +69,26 @@ class MatrixFactoriztion:
     finalMatrix = np.array(sorted(np.array([nonBought, recRatings]).transpose(), key = lambda x: x[1], reverse = True))
     return finalMatrix[0:n, 0]
     
-  def evaluate(self):
+  def evaluate(self, n = 50):
     coverageSet = set()
     hit, rec_count, test_count = 0, 0, 0
     
-    for user in list(set(self.trainSet[:, 0])):
-      testItems = self.trainSet[np.where(self.testSet[:, 0] == user)][:, 1]
-      for item in self.recommend(user):
-        if item in testItems: hit += 1
-        coverageSet.add(item)
-        rec_count += 1
-      test_count += len(testItems)
-      ColorPrint('Recommend for a user')
+    for i in range(10):
+      users = list(set(self.trainSet[:, 0]))[(i * self.userCount / 10) : (i + 1) * self.userCount / 10]
+      finalMatrix = self.recommend(users)
+      
+      for user in list(set(self.trainSet[:, 0]))[(i * self.userCount / 10) : (i + 1) * self.userCount / 10]:
+        testItems = self.testSet[np.where(self.testSet[:, 0] == user)][:, 1]
+        hasBought = self.trainSet[np.where(self.trainSet[:, 0] == user)][:, 1]
+        nonBought = [item for item in self.itemSet if item not in hasBought]
+        ratingMatrix = finalMatrix[user - i * self.userCount / 10]
+        recItems = np.array(sorted(np.array([nonBought, ratingMatrix[nonBought]]).transpose(), key = lambda x: x[1], reverse = True))[0:n, 0]
+        for item in recItems:
+          if item in testItems: hit += 1
+          coverageSet.add(item)
+          rec_count += 1
+        test_count += len(testItems)
+        ColorPrint('Recommend for a user')
     
     precision = hit / (1.0 * rec_count)
     recall = hit / (1.0 * test_count)
@@ -105,8 +110,8 @@ class MatrixFactoriztion:
       
       trainWriter.add_summary(summaryStr, step)
       
-      if step % int(self.nStep / 100) == 0: ColorPrint('RMSE: %f, MAE: %f' % (self.sess.run(self.RMSE, feed_dict = feed_dict), self.sess.run(self.MAE, feed_dict = feed_dict)), 1)
-      if step % int(self.nStep / 100) == 0: self.evaluate()
+      if step % int(self.nStep / 1000) == 0: ColorPrint('RMSE: %f, MAE: %f' % (self.sess.run(self.RMSE, feed_dict = feed_dict), self.sess.run(self.MAE, feed_dict = feed_dict)), 1)
+      # if step % int(self.nStep / 100) == 0: self.evaluate()
     
     self.saver.save(self.sess, "log/model.ckpt")
 if __name__ == '__main__':
