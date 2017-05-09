@@ -31,14 +31,14 @@ class MatrixFactoriztion:
     self.userBiasEmbed = tf.nn.embedding_lookup(self.userBias, self.userIdx)
     self.itemBiasEmbed = tf.nn.embedding_lookup(self.itemBias, self.itemIdx)
     # some questions here: it seems the author want to calculate the seril
-    self.ratingMatrix = tf.reduce_sum(tf.mul(self.userFactorEmbed, self.itemFactorEmbed), 1)
+    self.ratingMatrix = tf.reduce_sum(tf.multiply(self.userFactorEmbed, self.itemFactorEmbed), 1)
     self.ratingMatrix = tf.add(self.ratingMatrix, self.userBiasEmbed)
     self.ratingMatrix = tf.add(self.ratingMatrix, self.itemBiasEmbed)
     
-    self.RMSE = tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.ratings, self.ratingMatrix))))
-    self.l2_loss = tf.nn.l2_loss(tf.sub(self.ratings, self.ratingMatrix))
-    self.MAE = tf.reduce_mean(tf.abs(tf.sub(self.ratings, self.ratingMatrix)))
-    self.regulazation = tf.add(tf.mul(self.reg_lambda, tf.nn.l2_loss(self.userFactor)), tf.mul(self.reg_lambda, tf.nn.l2_loss(self.itemFactor)))
+    self.RMSE = tf.sqrt(tf.reduce_mean(tf.square(tf.subtract(self.ratings, self.ratingMatrix))))
+    self.l2_loss = tf.nn.l2_loss(tf.subtract(self.ratings, self.ratingMatrix))
+    self.MAE = tf.reduce_mean(tf.abs(tf.subtract(self.ratings, self.ratingMatrix)))
+    self.regulazation = tf.add(tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.userFactor)), tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.itemFactor)))
     self.loss = tf.add(self.l2_loss, self.regulazation)
     
     self.optimizer = tf.train.AdamOptimizer(self.learnRate)
@@ -55,10 +55,10 @@ class MatrixFactoriztion:
     self.sRatings = tf.add(tf.reduce_sum(tf.matmul(self.sUserFactor, tf.transpose(self.sItemFactor)), 0), self.sItemBias)
     
     # Saver
-    tf.scalar_summary("RMSE", self.RMSE)
-    tf.scalar_summary("MAE", self.MAE)
-    tf.scalar_summary("L2-Loss", self.l2_loss)
-    tf.scalar_summary("Reg-Loss", self.loss)
+    tf.summary.scalar("RMSE", self.RMSE)
+    tf.summary.scalar("MAE", self.MAE)
+    tf.summary.scalar("L2-Loss", self.l2_loss)
+    tf.summary.scalar("Reg-Loss", self.loss)
     
     self.summary_op = tf.merge_all_summaries()
     
@@ -93,9 +93,9 @@ class MatrixFactoriztion:
   
   def train(self):
     self.sess = tf.Session()
-    self.sess.run(tf.initialize_all_variables())
+    self.sess.run(tf.global_variables_initializer())
     
-    trainWriter = tf.train.SummaryWriter('./log', graph=self.sess.graph)
+    trainWriter = tf.summary.FileWriter('./log', graph=self.sess.graph)
     for step in range(1, self.nStep):
       batchIdx = np.random.randint(len(self.trainSet), size = self.batchSize)
       feed_dict = {self.userIdx: self.trainSet[batchIdx][:, 0], self.itemIdx: self.trainSet[batchIdx][:, 1], self.ratings: self.trainSet[batchIdx][:, 2]}
