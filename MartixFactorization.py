@@ -3,6 +3,7 @@ import tensorflow as tf
 import numpy as np
 from tools.Dataset import DataSet
 from tools.utils import ColorPrint
+from time import clock
 
 class MatrixFactoriztion:
   def __init__(self, filename):
@@ -11,10 +12,10 @@ class MatrixFactoriztion:
     self.k = 50
     self.learnRate = 0.001
     self.reg_lambda = tf.constant(0.001, dtype=tf.float32)
-    self.nStep = 200000
+    self.nStep = 20000
     self.batchSize = 1024
     
-    self.itemSet = np.array(list(set(self.trainSet[:, 1])))
+    self.itemSet = range(0, self.itemCount)
     
   def buildGraph(self):
     self.userIdx = tf.placeholder(tf.int32, [None])
@@ -49,7 +50,7 @@ class MatrixFactoriztion:
     self.sUser = tf.placeholder(tf.int32, [None])
     self.sUserFactor = tf.nn.embedding_lookup(self.userFactor, self.sUser)
     self.sUserBias = tf.nn.embedding_lookup(self.userBias, self.sUser)
-    self.sRatings = tf.add(tf.add(tf.reduce_sum(tf.matmul(self.sUserFactor, tf.transpose(self.itemFactor)), 0), self.sUserBias), self.itemBias)
+    self.sRatings = tf.add(tf.matmul(self.sUserFactor, tf.transpose(self.itemFactor)), self.itemBias)
     
     # Saver
     tf.summary.scalar("RMSE", self.RMSE)
@@ -61,38 +62,38 @@ class MatrixFactoriztion:
     
     self.saver = tf.train.Saver()
     
-  def recommend(self, user, n = 50):
-    hasBought = self.trainSet[np.where(self.trainSet[:, 0] == user)][:, 1]
-    nonBought = [item for item in self.itemSet if item not in hasBought]
-    feed_dict = {self.sUser: [user], self.sItem: nonBought}
+  def recommend(self, users):
+    feed_dict = {self.sUser: users}
     recRatings = self.sess.run(self.sRatings, feed_dict = feed_dict)
-    finalMatrix = np.array(sorted(np.array([nonBought, recRatings]).transpose(), key = lambda x: x[1], reverse = True))
-    return finalMatrix[0:n, 0]
+    return recRatings
     
   def evaluate(self, n = 50):
     coverageSet = set()
     hit, rec_count, test_count = 0, 0, 0
     
-    for i in range(10):
-      users = list(set(self.trainSet[:, 0]))[(i * self.userCount / 10) : (i + 1) * self.userCount / 10]
+    ColorPrint('User Count: %d' % self.userCount)
+    
+    batch = 100
+    
+    for i in range(batch):
+      users = list(set(self.trainSet[:, 0]))[(i * self.userCount / batch) : (i + 1) * self.userCount / batch]
       finalMatrix = self.recommend(users)
       
-      for user in list(set(self.trainSet[:, 0]))[(i * self.userCount / 10) : (i + 1) * self.userCount / 10]:
+      for user in list(set(self.trainSet[:, 0]))[(i * self.userCount / batch) : (i + 1) * self.userCount / batch]:
         testItems = self.testSet[np.where(self.testSet[:, 0] == user)][:, 1]
         hasBought = self.trainSet[np.where(self.trainSet[:, 0] == user)][:, 1]
-        nonBought = [item for item in self.itemSet if item not in hasBought]
-        ratingMatrix = finalMatrix[user - i * self.userCount / 10]
-        recItems = np.array(sorted(np.array([nonBought, ratingMatrix[nonBought]]).transpose(), key = lambda x: x[1], reverse = True))[0:n, 0]
+        nonBought = np.delete(self.itemSet, hasBought)
+        ratingMatrix = finalMatrix[user - i * self.userCount / batch]
+        recItems = nonBought[np.argpartition(ratingMatrix[nonBought], -n)[-n:]]
         for item in recItems:
           if item in testItems: hit += 1
           coverageSet.add(item)
           rec_count += 1
         test_count += len(testItems)
-        ColorPrint('Recommend for a user')
-    
+      ColorPrint('Processed: %6d, precision=%.4f(%d)\trecall=%.4f\tcoverage=%.4f' % ((i + 1) * self.userCount / batch, hit / (1.0 * rec_count), hit, hit / (1.0 * test_count), len(coverageSet) / (1.0 * self.itemCount)))
     precision = hit / (1.0 * rec_count)
     recall = hit / (1.0 * test_count)
-    coverage = len(all_rec_movies) / (1.0 * self.movie_count)
+    coverage = len(coverageSet) / (1.0 * self.itemCount)
     
     ColorPrint('precision=%.4f\trecall=%.4f\tcoverage=%.4f' % (precision, recall, coverage))
   
@@ -100,6 +101,9 @@ class MatrixFactoriztion:
     self.sess = tf.Session()
     self.sess.run(tf.global_variables_initializer())
     
+    # self.saver.restore(self.sess, './log/model.ckpt')
+    # self.evaluate()
+    # exit()
     trainWriter = tf.summary.FileWriter('./log', graph=self.sess.graph)
     for step in range(1, self.nStep):
       batchIdx = np.random.randint(len(self.trainSet), size = self.batchSize)
@@ -111,10 +115,11 @@ class MatrixFactoriztion:
       trainWriter.add_summary(summaryStr, step)
       
       if step % int(self.nStep / 1000) == 0: ColorPrint('RMSE: %f, MAE: %f' % (self.sess.run(self.RMSE, feed_dict = feed_dict), self.sess.run(self.MAE, feed_dict = feed_dict)), 1)
-      # if step % int(self.nStep / 100) == 0: self.evaluate()
-    
+      # if step % int(self.nStep / 1000) == 0: self.evaluate()
+    self.evaluate()
     self.saver.save(self.sess, "log/model.ckpt")
 if __name__ == '__main__':
-  model = MatrixFactoriztion('./dataset/Ama/reviews.txt')
+  # model = MatrixFactoriztion('./dataset/Ama/reviews.txt')
+  model = MatrixFactoriztion('./dataset/u.data')
   model.buildGraph()
   model.train()

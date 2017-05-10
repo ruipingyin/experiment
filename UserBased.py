@@ -83,7 +83,7 @@ class UserBasedCF():
       
 
 if __name__ == '__main__':
-  model = UserBasedCF('./dataset/Ama/reviews.txt')
+  model = UserBasedCF('./dataset/ml_100k.txt')
   model.calc_user_sim()
   model.evaluate()
   
