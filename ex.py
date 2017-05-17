@@ -23,4 +23,4 @@ def MF_Explicit_Auc_Test():
   model.buildGraph()
   model.train()
   
-MF_Explicit_Auc_Test()
+MF_Explicit_Test()

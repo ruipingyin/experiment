@@ -9,8 +9,8 @@ class MatrixFactoriztionModel:
   def __init__(self, filename, implicit):
     self.trainSet, self.testSet, self.userCount, self.itemCount = DataSet(filename, implicit).get_dataset()
     
-    self.latentDim = 30
-    self.learnRate = 0.001
+    self.latentDim = 25
+    self.learnRate = 0.005
     self.reg_lambda = tf.constant(0.1, dtype=tf.float32)
     self.userNormalStd, self.userBiasStd = 0.001, 0.001
     self.itemNormalStd, self.itemBiasStd = 0.001, 0.001
@@ -43,7 +43,9 @@ class MatrixFactoriztionModel:
     self.RMSE = tf.sqrt(tf.losses.mean_squared_error(self.ratings, self.ratingMatrix))
     self.l2_loss = tf.nn.l2_loss(tf.subtract(self.ratings, self.ratingMatrix))
     self.MAE = tf.reduce_mean(tf.abs(tf.subtract(self.ratings, self.ratingMatrix)))
-    self.regulazation = tf.add(tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.userFactor)), tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.itemFactor)))
+    self.regulazation1 = tf.add(tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.userFactor)), tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.itemFactor)))
+    self.regulazation2 = tf.add(tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.userBias)), tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.itemBias)))
+    self.regulazation = tf.add(self.regulazation1, self.regulazation2)
     self.loss = tf.add(self.l2_loss, self.regulazation)
     
     self.optimizer = tf.train.AdamOptimizer(self.learnRate)

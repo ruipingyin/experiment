@@ -14,6 +14,13 @@ filter_matrix = trainSet < 1e-6
 
 final_matrix = reconstruct_matrix * filter_matrix
 
+print type(user_distribution), type(item_distribution)
+print user_distribution.shape, item_distribution.shape
+
+print type(reconstruct_matrix), type(filter_matrix)
+print reconstruct_matrix.shape, filter_matrix.shape
+exit()
+
 coverageSet = set()
 hit, rec_count, test_count = 0, 0, 0
 
