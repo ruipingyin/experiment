@@ -1,18 +1,18 @@
 import math, random, sys
 from operator import itemgetter
 from tools.utils import ColorPrint
-from tools.Dataset import DataBase
+from tools.Dataset import DataModel
 
 class UserBasedCF():
-  def __init__(self, filename, n_sim_user = 200, n_rec_movie = 100):
-    self.dataset = DataBase(filename)
+  def __init__(self, filename, n_sim_user = 20, n_rec_movie = 10):
+    self.trainset, self.testset = DataModel(filename = filename, implicit = False, pivot = 0.7).dataMap()
     self.n_sim_user, self.n_rec_movie = n_sim_user, n_rec_movie
     self.user_sim_mat = {}
     self.movie_count = 0
     
   def calc_user_sim(self):
     movie2users = {}
-    for user, items in self.dataset.trainset.items():
+    for user, items in self.trainset.items():
       for movie in items:
         movie2users.setdefault(movie, set())
         movie2users[movie].add(user)
@@ -33,7 +33,7 @@ class UserBasedCF():
     simfactor_count = 0
     for user, related_users in self.user_sim_mat.iteritems():
       for rUser, count in related_users.iteritems():
-        self.user_sim_mat[user][rUser] = count / math.sqrt(len(self.dataset.trainset[user]) * len(self.dataset.trainset[rUser]))
+        self.user_sim_mat[user][rUser] = count / math.sqrt(len(self.trainset[user]) * len(self.trainset[rUser]))
         simfactor_count += 1
         if simfactor_count % 2000000 == 0: ColorPrint('calculating user similarity factor(%d)' % simfactor_count, 1)
         
@@ -43,12 +43,12 @@ class UserBasedCF():
     N = self.n_rec_movie
     
     rank = dict()
-    watched_movies = self.dataset.trainset[user]
+    watched_movies = self.trainset[user]
     
     if user not in self.user_sim_mat: return []
     
     for user, wuv in sorted(self.user_sim_mat[user].items(), key=itemgetter(1), reverse=True)[0:(K if len(self.user_sim_mat[user].items()) > K else len(self.user_sim_mat[user].items()))]:
-      for movie in self.dataset.trainset[user]:
+      for movie in self.trainset[user]:
         if movie in watched_movies: continue
         rank.setdefault(movie, 0)
         rank[movie] += wuv
@@ -62,10 +62,10 @@ class UserBasedCF():
     
     all_rec_movies = set()
     
-    for i, user in enumerate(self.dataset.trainset):
-      if i % 500 == 0: sys.stderr.write('Done %d / %d\r' % (i, len(self.dataset.testset)))
-      if i == len(self.dataset.trainset) - 1: sys.stderr.write(' ' * 50 + '\r')
-      test_movies = self.dataset.testset[user]
+    for i, user in enumerate(self.trainset):
+      if i % 500 == 0: sys.stderr.write('Done %d / %d\r' % (i, len(self.testset)))
+      if i == len(self.trainset) - 1: sys.stderr.write(' ' * 50 + '\r')
+      test_movies = self.testset[user]
       rec_movies = self.recommend(user)
       
       for movie, w in rec_movies:
@@ -83,7 +83,7 @@ class UserBasedCF():
       
 
 if __name__ == '__main__':
-  model = UserBasedCF('./dataset/Ama/reviews.txt')
+  model = UserBasedCF('./dataset/ml_100k.txt')
   model.calc_user_sim()
   model.evaluate()
   
