@@ -97,5 +97,87 @@ class DataModel():
       mTrain[tri[0]][tri[1]] = tri[2]
     return (mTrain, np.array(self.testset), self.userCount, self.itemCount)
 
-
+  def dataInfo(self):
+    ColorPrint("Record Count: %d, User Count: %d, Item Count: %d" % (len(self.testset) + len(self.trainset), self.userCount, self.itemCount), 1)
+    ColorPrint("Sparsity: %.6f" % ((len(self.testset) + len(self.trainset)) * 1.0 / self.userCount / self.itemCount), 1)
+    
+    max, min = -1, 999
+    sum = 0
+    for user, items in self.dataset.items():
+      max = len(items) if len(items) > max else max
+      min = len(items) if len(items) < min else min
+      sum += len(items)
+    ColorPrint("Item per user: %d, %d, %.2f" % (min, max, sum * 1.0 / self.userCount), 1)
+    
+    if sum != len(self.testset) + len(self.trainset): ColorPrint("Record Count Error.")
+    
+    dataset_i = {}
+    max, min, sum = -1, 999, 0
+    with open(self.filename, 'r') as fp:
+      for i, line in enumerate(fp):
+        user, item, _, _ = line.strip('\r\n').split()
+        dataset_i.setdefault(int(item), [])
+        dataset_i[int(item)].append(user)
+    for item, users in dataset_i.items():
+      max = len(users) if len(users) > max else max
+      min = len(users) if len(users) < min else min
+      sum += len(users)
+    ColorPrint("User per item: %d, %d, %.2f" % (min, max, sum * 1.0 / self.itemCount), 1)
+    
+    dataHist = []
+    for user, items in self.dataset.items():
+      dataHist.append(len(items))
+      
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    plt.figure(1)
+    plt.hist(dataHist, bins=1000) 
+    plt.savefig('./M1.png')
   
+  def dataPrep(self):
+    keyList = []
+    for user, items in self.dataset.items():
+      if len(items) < 2: keyList.append(user)
+    for user in keyList:
+      del self.dataset[user]
+    
+    dataset_i = {}
+    for user, items in self.dataset.items():
+      for item in items:
+        dataset_i.setdefault(int(item), [])
+        dataset_i[int(item)].append(user)
+        
+    ColorPrint('Item Count: %d' % len(dataset_i))
+    
+    keyList = []
+    for user, items in dataset_i.items():
+      if len(items) < 2: keyList.append(user)
+    for user in keyList:
+      del dataset_i[user]
+    
+    dataset_u = {}
+    for user, items in dataset_i.items():
+      for item in items:
+        dataset_u.setdefault(int(item), [])
+        dataset_u[int(item)].append(user)
+    
+    ColorPrint('User Count: %d' % len(dataset_i))
+    
+    keyList = []
+    for user, items in dataset_u.items():
+      if len(items) < 10: keyList.append(user)
+    for user in keyList:
+      del dataset_u[user]
+    
+    userMap, itemMap = {}, {}
+    for user, items in dataset_u.items():
+      if user not in userMap: userMap[user] = len(userMap)
+      for item in items:
+        if item not in itemMap: itemMap[item] = len(itemMap)
+    
+      
+    with open('./dataset/Ama/reviews_t20.txt', 'w') as out:
+      for user, items in dataset_u.items():
+        for item in items:
+          out.write('%d\t%d\t1\t2222\n' % (userMap[user], itemMap[item]))

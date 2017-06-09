@@ -1,25 +1,31 @@
 #-*- coding: utf-8 -*-
 import tensorflow as tf
 import numpy as np
-from tools.Dataset import DataSet
+from tools.Dataset import DataModel
 from tools.utils import ColorPrint
-from time import clock
+import sys
 
 class MatrixFactoriztionModel:
-  def __init__(self, filename, implicit):
-    self.trainSet, self.testSet, self.userCount, self.itemCount = DataSet(filename, implicit).get_dataset()
+  def __init__(self, filename, implicit, AUC):
+    self.AUC = AUC
+    if self.AUC:
+      self.trainSet, self.testSet, self.userCount, self.itemCount = DataModel(filename = filename, implicit = implicit, pivot = -1).dataList()
+    else:
+      self.trainSet, self.testSet, self.userCount, self.itemCount = DataModel(filename = filename, implicit = implicit, pivot = 0.7).dataList()
+    tf.reset_default_graph()
     
-    self.latentDim = 25
+    self.latentDim = 30
     self.learnRate = 0.005
-    self.reg_lambda = tf.constant(0.1, dtype=tf.float32)
     self.userNormalStd, self.userBiasStd = 0.001, 0.001
     self.itemNormalStd, self.itemBiasStd = 0.001, 0.001
-    self.nStep = 20000
+    self.nStep = 10000
     self.batchSize = 512
-    
+    self.regLambda = 0.1
     self.itemSet = range(0, self.itemCount)
     
   def buildGraph(self):
+    self.reg_lambda = tf.constant(self.regLambda, dtype=tf.float32)
+  
     self.userIdx = tf.placeholder(tf.int32, [None])
     self.itemIdx = tf.placeholder(tf.int32, [None])
     self.ratings = tf.placeholder(tf.float32, [None])
@@ -102,6 +108,7 @@ class MatrixFactoriztionModel:
     coverage = len(coverageSet) / (1.0 * self.itemCount)
     
     ColorPrint('precision=%.4f\trecall=%.4f\tcoverage=%.4f' % (precision, recall, coverage))
+    return (precision, recall, coverage)
   
   def train(self):
     self.sess = tf.Session()
@@ -110,6 +117,7 @@ class MatrixFactoriztionModel:
     # self.saver.restore(self.sess, './log/model.ckpt')
     # self.evaluate()
     # exit()
+    
     trainWriter = tf.summary.FileWriter('./log/train', graph=self.sess.graph)
     testWriter = tf.summary.FileWriter('./log/test', graph=self.sess.graph)
     
@@ -129,6 +137,36 @@ class MatrixFactoriztionModel:
         summaryStr = self.sess.run(self.summary_op, feed_dict = feed_dict_test)
         testWriter.add_summary(summaryStr, step)
       # if step % int(self.nStep / 1000) == 0: self.evaluate()
-    self.evaluate()
     self.saver.save(self.sess, "log/model.ckpt")
+    if self.AUC:
+      return self.evalAUC()
+    else:
+      return self.evaluate()
 
+  def evalAUC(self):
+    aucList = []
+    batch = 100
+    
+    for i in range(batch):
+      users = list(set(self.trainSet[:, 0]))[(i * self.userCount / batch) : (i + 1) * self.userCount / batch]
+      finalMatrix = self.recommend(users)
+      
+      for user in users:
+        testItem = self.testSet[np.where(self.testSet[:, 0] == user)][0, 1]
+        hasBought = self.trainSet[np.where(self.trainSet[:, 0] == user)][:, 1]
+        nonBought = np.delete(self.itemSet, hasBought)
+        ratingList = finalMatrix[user - i * self.userCount / batch]
+        max, countTest = 0, 0
+        for item in range(self.itemCount):
+          if item == testItem: continue
+          if item in hasBought: continue
+          max += 1
+          if ratingList[testItem] > ratingList[item]: countTest += 1
+          
+        aucList.append(1.0 * countTest / max)
+      sys.stderr.write('Done %d / %d\r' % (i * batch, self.userCount))
+  
+    aucValue = np.sum(aucList) * 1.0 / self.userCount
+    variance = np.sqrt(np.sum((aucList - aucValue) ** 2) / self.userCount)
+    
+    ColorPrint('\nAUC=%.4f\tVariance=%.4f' % (aucValue, variance), 1)

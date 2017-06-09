@@ -85,7 +85,6 @@ class MatrixFactoriztionAUCModel:
         hasBought = self.trainSet[np.where(self.trainSet[:, 0] == user)][:, 1]
         nonBought = np.delete(self.itemSet, hasBought)
         ratingList = finalMatrix[user - i * self.userCount / batch]
-        recItems = nonBought[np.argpartition(ratingList[nonBought], -n)[-n:]]
         max, countTest = 0, 0
         for item in range(self.itemCount):
           if item == testItem: continue

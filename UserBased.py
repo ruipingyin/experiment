@@ -4,7 +4,7 @@ from tools.utils import ColorPrint
 from tools.Dataset import DataModel
 
 class UserBasedCF():
-  def __init__(self, filename, n_sim_user = 20, n_rec_movie = 10):
+  def __init__(self, filename, n_sim_user = 20, n_rec_movie = 50):
     self.trainset, self.testset = DataModel(filename = filename, implicit = False, pivot = 0.7).dataMap()
     self.n_sim_user, self.n_rec_movie = n_sim_user, n_rec_movie
     self.user_sim_mat = {}
@@ -83,7 +83,7 @@ class UserBasedCF():
       
 
 if __name__ == '__main__':
-  model = UserBasedCF('./dataset/ml_100k.txt')
+  model = UserBasedCF('./dataset/Ama/reviews.txt')
   model.calc_user_sim()
   model.evaluate()
   
